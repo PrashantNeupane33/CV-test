@@ -1,7 +1,8 @@
 import depthai as dai
+import time
 
 
-class DepthAICameraHandler():
+class DepthAICameraHandler:
     def __init__(self):
         # Create pipeline
         pipeline = dai.Pipeline()
@@ -9,7 +10,6 @@ class DepthAICameraHandler():
         # Define sources and outputs
         monoLeft = pipeline.create(dai.node.MonoCamera)
         monoRight = pipeline.create(dai.node.MonoCamera)
-        # camRgb = pipeline.create(dai.node.ColorCamera)
         xoutLeft = pipeline.create(dai.node.XLinkOut)
         xoutRight = pipeline.create(dai.node.XLinkOut)
 
@@ -17,10 +17,10 @@ class DepthAICameraHandler():
         xoutRight.setStreamName('right')
 
         # Properties
-        monoLeft.setCamera("left")
+        monoLeft.setBoardSocket(dai.CameraBoardSocket.LEFT)
         monoLeft.setResolution(
             dai.MonoCameraProperties.SensorResolution.THE_720_P)
-        monoRight.setCamera("right")
+        monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
         monoRight.setResolution(
             dai.MonoCameraProperties.SensorResolution.THE_720_P)
 
@@ -30,18 +30,24 @@ class DepthAICameraHandler():
 
         self.device = dai.Device(pipeline)
 
+        # Start pipeline
+        self.device.startPipeline()
+
         # Defining data queue
         self.qLeft = self.device.getOutputQueue(
-            name="left", maxSize=4, blocking=False)
+            name="left", maxSize=10, blocking=False)
         self.qRight = self.device.getOutputQueue(
-            name="right", maxSize=4, blocking=False)
+            name="right", maxSize=10, blocking=False)
 
     def getFrame(self):
-        inLeft = self.qLeft.tryGet()
-        inRight = self.qRight.tryGet()
-        if inLeft is None or inRight is None:
-            return
-        Lframe = inLeft.getCvFrame()
-        Rframe = inRight.getCvFrame()
-
-        return Lframe, Rframe
+        retry_count = 5
+        while retry_count > 0:
+            inLeft = self.qLeft.tryGet()
+            inRight = self.qRight.tryGet()
+            if inLeft and inRight:
+                Lframe = inLeft.getCvFrame()
+                Rframe = inRight.getCvFrame()
+                return Lframe, Rframe
+            retry_count -= 1
+            time.sleep(0.05)  # Wait 50ms before retrying
+        return None  # Return None if no frames are retrieved after retries
