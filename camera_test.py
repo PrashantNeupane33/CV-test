@@ -1,25 +1,18 @@
 import cv2 as cv
-from camera_handler import DepthAICameraHandler as dai
+from camera_handler import DepthAICameraHandler
 
-# Initialize the DepthAI camera handler
-camera = dai()
-print("Camera Initialized")
+camera = DepthAICameraHandler()
 
 while True:
-    # Fetch frames
     frames = camera.getFrame()
-
-    # Check if frames are valid
     if frames is None:
-        continue  # Skip this iteration if frames are not available
+        print("No frames retrieved, retrying...")
+        continue
 
     Lframe, Rframe = frames
+    cv.imshow("Left Frame", Lframe)
+    cv.imshow("Right Frame", Rframe)
 
-    # Display the frames
-    cv.imshow("Left", Lframe)
-    cv.imshow("Right", Rframe)
-
-    # Break the loop if 'q' is pressed
     if cv.waitKey(1) & 0xFF == ord('q'):
         break
 
