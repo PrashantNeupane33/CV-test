@@ -23,9 +23,9 @@ class DepthAICameraHandler:
         monoLeft.setFps(60)
         monoRight.setFps(60)
 
-        stereo.initialConfig.setConfidenceThreshold(255)
-        stereo.setLeftRightCheck(True)
-        stereo.setSubpixel(False)
+        self.stereo.initialConfig.setConfidenceThreshold(255)
+        self.stereo.setLeftRightCheck(True)
+        self.stereo.setSubpixel(False)
 
         camRgb.setPreviewSize(600, 600)
         camRgb.setInterleaved(False)
@@ -37,11 +37,11 @@ class DepthAICameraHandler:
 
         xoutDepth = pipeline.create(dai.node.XLinkOut)
         xoutDepth.setStreamName("depth")
-        stereo.depth.link(xoutDepth.input)
+        self.stereo.depth.link(xoutDepth.input)
 
         xoutDepth = pipeline.create(dai.node.XLinkOut)
         xoutDepth.setStreamName("disp")
-        stereo.disparity.link(xoutDepth.input)
+        self.stereo.disparity.link(xoutDepth.input)
 
         xoutRgb = pipeline.create(dai.node.XLinkOut)
         xoutRgb.setStreamName("rgb")
@@ -67,14 +67,13 @@ class DepthAICameraHandler:
     def getFrame(self):
         retry_count = 5
         while retry_count > 0:
-            inDepth = self.depthQueue.tryGet()
+            depthData = self.depthQueue.tryGet()
             inDisp = self.dispQ.tryGet()
             inRgb = self.rgbQueue.tryGet()
-            if inDepth and inDisp and inRgb:
-                depthframe = inDepth.getCvFrame()
+            if depthData and inDisp and inRgb:
                 dispframe = inDisp.getCvFrame()
                 RgbFame = inRgb.getCvFrame()
-                return depthframe, dispframe, RgbFame
+                return depthData, dispframe, RgbFame
             retry_count -= 1
             time.sleep(0.05)  # Wait 50ms before retrying
         return None  # Return None if no frames are retrieved after retries
