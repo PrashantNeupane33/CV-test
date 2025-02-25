@@ -2,17 +2,16 @@ import depthai as dai
 
 
 class OAKD:
-    def __init__(
-        self, model=None, preview_size=(640, 480), fps=60, conf_threshold=0.75
-    ):
-        self.timeout = 60.0 / 1000.0
+    def __init__(self, model=None, preview_size=(640, 480), fps=60, conf_threshold=0.75):
+        self.timeout = 1/fps
         pipeline = dai.Pipeline()
+        device = dai.Device()
 
         # Define sources and outputs
         monoLeft = pipeline.create(dai.node.MonoCamera)
         monoRight = pipeline.create(dai.node.MonoCamera)
         self.stereo = pipeline.create(dai.node.StereoDepth)
-        camRgb = pipeline.create(dai.node.ColorCamera)
+        camRgb = pipeline.create(dai.node.Camera)
 
         # Properties
         monoLeft.setResolution(
@@ -24,13 +23,26 @@ class OAKD:
         monoLeft.setFps(fps)
         monoRight.setFps(fps)
 
-        self.stereo.initialConfig.setConfidenceThreshold(255)
-        self.stereo.setLeftRightCheck(True)
-        self.stereo.setSubpixel(False)
-
+        camRgb.setBoardSocket(dai.CameraBoardSocket.CAM_A)
         camRgb.setPreviewSize(preview_size)
         camRgb.setInterleaved(False)
         camRgb.setFps(fps)
+
+        try:
+            calibData = device.readCalibration2()
+            lensPosition = calibData.getLensPosition(
+                dai.CameraBoardSocket.CAM_A)
+            if lensPosition:
+                camRgb.initialControl.setManualFocus(lensPosition)
+        except:
+            raise
+
+        self.stereo.setDefaultProfilePreset(
+            dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
+        self.stereo.initialConfig.setConfidenceThreshold(255)
+        self.stereo.setLeftRightCheck(True)
+        self.stereo.setSubpixel(False)
+        self.stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)
 
         # Linking
         monoLeft.out.link(self.stereo.left)
@@ -42,25 +54,15 @@ class OAKD:
 
         xoutRgb = pipeline.create(dai.node.XLinkOut)
         xoutRgb.setStreamName("rgb")
-        camRgb.preview.link(xoutRgb.input)
+        camRgb.video.link(xoutRgb.input)
 
-        self.device = dai.Device(pipeline, maxUsbSpeed=dai.UsbSpeed.SUPER_PLUS)
-
-        # Print OAK-D camera properties
-        print("MxId:", self.device.getDeviceInfo().getMxId())
-        print("USB speed:", self.device.getUsbSpeed())
-        print("Connected cameras:", self.device.getConnectedCameras())
+        camRgb.setMeshSource(dai.CameraProperties.WarpMeshSource.CALIBRATION)
+        camRgb.setCalibrationAlpha(1)
+        self.stereo.setAlphaScaling(1)
 
         # Start pipeline
-        self.device.startPipeline()
+        self.device.startPipeline(pipeline)
 
-        # Defining data queue
-        # self.qLeft = self.device.getOutputQueue(
-        #     name="left", maxSize=10, blocking=False)
-        # self.qRight = self.device.getOutputQueue(
-        #     name="right", maxSize=10, blocking=False)
-        # self.qRgb = self.device.getOutputQueue(
-        #     name="rgb", maxSize=10, blocking=False)
         self.dispQ = self.device.getOutputQueue(
             name="disp", maxSize=4, blocking=False)
         self.rgbQueue = self.device.getOutputQueue(
@@ -76,4 +78,3 @@ class OAKD:
         if inDisp:
             dispFrame = inDisp.getCvFrame()
         return (rgbFrame, dispFrame)
-
